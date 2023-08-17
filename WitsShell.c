@@ -6,8 +6,27 @@
 #include <time.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/wait.h>
+
+/* To Do
+- cd
+- errors
+- Bash
+- redirection >
+- parallel &
+*/
 
 //I call this data structure a linked-array. It's an array with a pointer to the next array
+
+char* exit_statements[] = {"Fine leave me, like everyone else does\n", "Everyone eventually leaves me. You're no different\n", 
+"One day you'll realise how much of a mistake it was to leave me\n", "Fine Leave me, I never liked you anyway\n", 
+"Hope you learn to cherish the time we spent together after you leave me\n", "It's fine if you leave, I'm too good for you anyway\n", 
+"When you realise leaving me was a mistake, it will be too late and I'll be long gone\n"};
+
+char error_message[30] = "An error has occurred\n";
+
+
+
 struct StringHolder
 {
     char *string;
@@ -71,12 +90,8 @@ void updatePath(struct StringHolder *head, struct StringHolder *path){
     }
 }
 
-char* exit_statements[] = {"Fine leave me, like everyone else does\n", "Everyone eventually leaves me. You're no different\n", 
-"One day you'll realise how of a mistake it is to leave me\n", "Fine Leave me, I never liked you anyway\n", 
-"Hope you learn to cherish the time we spent together after you leave me\n"};
-
 char** getArg(struct StringHolder *pointer){
-    char** arg[pointer->numStrings - 1];
+    char* arg[pointer->numStrings - 1];
     
     if (pointer->numStrings > 1)
     {
@@ -92,16 +107,56 @@ char** getArg(struct StringHolder *pointer){
     return arg;
 }
 
+int countStrings(char **array) {
+    int count = 0;
+
+    while (array[count] != NULL) {
+        count++;
+    }
+
+    return count;
+}
+
+void cd(struct StringHolder *head){
+
+    int pid = fork();
+    if (pid == 0){
+        if (head->numStrings != 2 || chdir(head->next_pointer->string) != 0)
+        {
+            printError();
+        }   
+    }
+    else{
+        wait(NULL);
+    }
+}
+
+void exitShell(struct StringHolder *head){
+
+    srand(time(NULL));
+
+    if (head->numStrings == 1){
+        printf("%s", exit_statements[rand() % countStrings(exit_statements)]);
+        exit(0);
+    }
+    else{
+        printf("You can't leave me just yet ;)\n");
+        printError();
+    }
+}
+
+void printError(){
+    write(STDERR_FILENO, error_message, strlen(error_message));
+}
 
 int main(int argc, char const *argv[])
 {
+
 
     struct StringHolder *path = initStingHolder("/bin/");
 
     char *token, *rest;
     const char *delim = " ";
-
-    srand(time(NULL));
 
 
     if (argc > 1){
@@ -156,8 +211,8 @@ int main(int argc, char const *argv[])
 
             if (strcmp(head->string, "exit") == 0)
             {
-                printf("%s", exit_statements[rand() % 5]);
-                exit(0);
+                exitShell(head);
+
             }
             else if (strcmp(head->string, "path") == 0)
             {
@@ -165,21 +220,24 @@ int main(int argc, char const *argv[])
             }
             else if (strcmp(head->string, "cd") == 0)
             {
-                printf("fuck off \n");
+
+                cd(head);
             }
             else
             {
                 pointer = path;
                 while (pointer != NULL)
                 {
-                    char *str_search = strcat(pointer->string, head->string);
+                    char *str_search = pointer->string;
+                    strcat(str_search, head->string);
+
                     if (access(str_search, X_OK) == 0)
                     {
 
                         int pid = fork();
                         if (pid == 0){
                             char** arg = getArg(head);
-                            execv(pointer->string, arg);
+                            execv(str_search, arg);
                         }
                         else {
                             wait(NULL);
@@ -188,21 +246,14 @@ int main(int argc, char const *argv[])
                         
                     }
 
-                    pointer = pointer->next_pointer;
-
-                    
-                }
-                
-                
-                
+                    pointer = pointer->next_pointer;  
+                }   
             }
-            
-
             freeStringHolder(head);
             //free(pointer);
 
         } else {
-            printf("%s", exit_statements[rand()%5]);
+            printf("%s", exit_statements[rand() % countStrings(exit_statements)]);
             exit(0);
         }
 
